@@ -1,26 +1,27 @@
 {
-  "name": "sphere-node-pub",
+  "name": "sphere-pub",
   "version": "1.0.0",
-  "private": false,
-  "description": "Single-tenant, self-hosted Sphere Node: publishes a publisher's content as agent-readable fragments on Cloudflare Workers.",
+  "private": true,
+  "description": "sphere.pub — the Sphere project site, served by its own Sphere Node.",
   "type": "module",
   "license": "MIT",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "dev": "wrangler dev",
-    "publish:fragment": "node scripts/publish.ts",
-    "deploy": "wrangler d1 migrations apply SPHERE_DB --remote && wrangler deploy"
+    "migrate": "wrangler d1 migrations apply SPHERE_DB --remote",
+    "migrate:local": "wrangler d1 migrations apply SPHERE_DB --local",
+    "publish:fragment": "sphere-node",
+    "deploy": "npm run migrate && wrangler deploy"
+  },
+  "dependencies": {
+    "@sphere-pub/node": "^1.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250109.0",
-    "@types/node": "^22.10.0",
     "typescript": "^5.7.0",
-    "vitest": "^2.1.0",
     "wrangler": "^4.0.0"
   }
 }

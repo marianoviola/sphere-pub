@@ -1,176 +1,64 @@
-# Sphere Node
+# sphere.pub
 
-Status: v1, work in progress.
+The Sphere project site, served by its own Sphere Node.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/marianoviola/sphere-node)
+[sphere.pub](https://sphere.pub) is a plain instance of the
+[`@sphere-pub/node`](https://github.com/marianoviola/sphere-node) package: the
+same node anyone installs, with this deployment's identity in `wrangler.toml`.
+It publishes the project's own documentation and theory (the
+[sphere](https://github.com/marianoviola/sphere) content repository) as
+agent-readable fragments. Sphere publishes itself.
 
-A Sphere Node is a single-tenant, self-hosted content server. It publishes one
-publisher's content as agent-readable "fragments" and serves them over a small
-HTTP contract designed for AI agents: a public discovery document, per-fragment
-manifests, free content, and a `402` payment challenge for paid content. It runs
-on Cloudflare Workers with D1, R2, and KV, and you run it yourself.
+There is no node code here. The whole instance is:
 
-This repository is the node. The authoring plugin and its tools live in a
-separate repository and are out of scope here.
+| File | Holds |
+|---|---|
+| `src/index.ts` | one line: re-export the package's Worker handler |
+| `wrangler.toml` | publisher vars and the D1 / R2 / KV bindings |
+| `package.json` | the dependency on `@sphere-pub/node` |
 
-## What it serves
+The HTTP contract, the fragment schema, and the migrations all come from the
+package (`node_modules/@sphere-pub/node/{spec,migrations}`).
 
-Public, unauthenticated, for agents:
-
-- `GET /.well-known/sphere.json` — publisher discovery (always `200`).
-- `GET /llms.txt` — plain-text discovery aid (llms.txt convention): publisher,
-  a pointer to the discovery document, and a flat list of fragment content URLs.
-- `GET /robots.txt` — allows every crawler, points at `/sitemap.xml`, and
-  declares [Content Signals](https://contentsignals.org) (`ai-train` off by
-  default; see `SPHERE_ALLOW_AI_TRAINING` below).
-- `GET /sitemap.xml` — the human index plus every fragment's canonical URL.
-- `GET /fragments/{id}/sphere.json` — fragment manifest.
-- `GET /fragments/{id}/content.md` — full content for `free` fragments, or a
-  preview plus a `402` payment challenge for `paid`/`metered` fragments. In v1
-  the challenge is returned but not verified (payment is a dormant stub). Also
-  reachable at the bare `GET /fragments/{id}` via `Accept: text/markdown`
-  content negotiation.
-
-Human, content-negotiated (browsers only):
-
-- `GET /` — HTML index of the publisher and its fragments.
-- `GET /fragments/{id}` — readable HTML page: full content for `free`
-  fragments, a preview plus a gated note for `paid`/`metered`. Requests with
-  `Accept: text/html` get HTML; the machine routes above are unchanged.
-
-Owner, bearer-token, read-only:
-
-- `GET /owner/summary` — counts, top fragments, revenue (zero in v1).
-- `GET /owner/fragments/{id}/usage` — event series for one fragment.
-- `GET /owner/payments` — payment ledger (empty in v1).
-
-The full contract is in [`spec/node-api.md`](spec/node-api.md) and
-[`spec/fragment.schema.json`](spec/fragment.schema.json).
-
-## Agent-readiness surface
-
-Beyond its own bespoke contract (`sphere.json` + `llms.txt`), the node
-advertises a compact set of emerging agent/crawler standards — everything
-that's honestly achievable without a real payment or checkout backend:
-`robots.txt` with Content Signals, `sitemap.xml`, `Accept: text/markdown`
-negotiation on `/fragments/{id}`, an alternate-discovery `Link` header on the
-human pages, and two commerce protocols shaped correctly by
-`access.payment.profile` — `x402` and `mpp` (see `spec/node-api.md`'s
-**Payment challenge shapes**).
-
-Explicitly out of scope, and why:
-
-- **ACP** (Agentic Commerce Protocol) and **UCP** (Universal Commerce
-  Protocol) — neither has a discovery-only mode; both require a real
-  checkout/cart API to honestly claim support.
-- **DNS-AID** — a DNS-zone-level convention (SVCB/TXT records), not
-  application code. Configure it at your DNS provider if you want it.
-- **Web Bot Auth** verification of inbound requests — a Cloudflare
-  zone-level feature (Verified Bots) if you're self-hosting behind
-  Cloudflare, not something this Worker can do on its own.
-- **MCP server discovery, Agent Skills, WebMCP** — this node is a content
-  server, not a tool/skill provider; publishing a capability manifest for
-  tools it doesn't have would be misleading. (The separate authoring plugin
-  is its own repository, out of scope here.)
-
-`SPHERE_ALLOW_AI_TRAINING` (a var, not a secret) controls the `ai-train`
-Content Signal in `/robots.txt`; it defaults to off. It has no effect on
-agent read/search access, which stays open regardless — that's the entire
-point of this project.
-
-## Architecture
-
-Domain logic in `src/core/` has zero Cloudflare imports and depends only on the
-ports in `src/core/ports.ts` (`BlobStore`, `KvStore`, `EventStore`,
-`FragmentStore`, `PaymentStore`). The Cloudflare implementation lives in
-`src/platform/cloudflare/` (R2 -> BlobStore, KV -> KvStore, D1 -> the rest). A
-future Node+S3+Postgres or AWS adapter would be a sibling folder under
-`platform/` with no change to `core/`.
-
-## Deploy
-
-### Deploy to Cloudflare button
-
-The button at the top of this README points at this repository:
-
-```markdown
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/marianoviola/sphere-node)
-```
-
-The button reads `wrangler.toml`, provisions a D1 database, an R2 bucket, and a
-KV namespace for you, and rewrites the resource IDs into your copy. The
-placeholder `database_id` and KV `id` values in `wrangler.toml` exist only so the
-button has a field to rewrite.
-
-### Manual Wrangler deploy
-
-For a manual deploy, delete the `database_id` and KV `id` lines in
-`wrangler.toml` (or leave them blank). Wrangler v4 will offer to provision the
-missing resources on first deploy and write the real IDs back. Then:
+## Operate
 
 ```bash
 npm install
-npm run deploy   # applies D1 migrations against the SPHERE_DB binding, then deploys
-```
-
-`npm run deploy` references the **binding** `SPHERE_DB`, not a database name, so
-it keeps working if you let Wrangler pick a different underlying database name.
-
-### Owner token
-
-The owner endpoints are gated by a bearer token. It is a **secret**, never a
-var, and never committed:
-
-```bash
+npm run migrate          # apply the package's D1 migrations, remote
 wrangler secret put SPHERE_OWNER_TOKEN
+npm run deploy           # migrate + wrangler deploy
 ```
 
-For local `wrangler dev`, copy `.dev.vars.example` to `.dev.vars` and set the
-token there (`.dev.vars` is gitignored).
-
-## Publish a fragment
-
-A fragment is a directory with `sphere.json`, `content.md`, and optional
-`media/`. See [`examples/fragments/sample/`](examples/fragments/sample/).
+Local development: copy the owner token into `.dev.vars`
+(`SPHERE_OWNER_TOKEN=...`), then
 
 ```bash
-node scripts/publish.ts examples/fragments/sample            # dry run: validate + plan
-node scripts/publish.ts examples/fragments/sample --remote   # upload via wrangler
+npm run migrate:local
+npm run dev
 ```
 
-The publish path consumes the fragment contract only. It validates against
-`spec/fragment.schema.json`, uploads content/media to R2, and upserts the
-fragment row in D1. It knows nothing about any CMS or source format.
+## Publish content
 
-## Ledger privacy
-
-Every public request appends one lean row: `ts, fragment_id, event_type,
-ua_family, ref_source`. The node never stores IP addresses, full user-agents, or
-any other PII. `ua_family` is a coarse bucket (for example `agent`, `browser`,
-`cli`); `ref_source` is a normalized referrer origin only. Overcollection is a
-defect, not a feature.
-
-## Develop
+Fragments are prepared from the `sphere` content repository with the
+[Sphere plugin](https://github.com/marianoviola/sphere-plugin) and published
+either with its `publish_fragment` tool (owner-authenticated
+`PUT /owner/fragments/{id}`) or with the package's CLI:
 
 ```bash
-npm install
-npm test          # vitest
-npm run typecheck # tsc --noEmit
-npm run dev       # wrangler dev (needs .dev.vars + local D1 migrations)
+npm run publish:fragment -- ../sphere/fragments/2026-06-23-concept            # dry run
+npm run publish:fragment -- ../sphere/fragments/2026-06-23-concept --remote   # upload via wrangler
 ```
 
-To run migrations against a local D1 for `wrangler dev`:
+## Upgrade the node
 
 ```bash
-wrangler d1 migrations apply SPHERE_DB --local
+npm install @sphere-pub/node@latest
+npm run deploy
 ```
+
+`npm run deploy` applies any new migrations before deploying.
 
 ## License
 
-The Sphere Node source code in this repository is licensed under the
-[Apache License 2.0](LICENSE).
-
-This code license is separate from any content license. The CC BY license used
-for published content and fragments (for example the `SPHERE_DEFAULT_LICENSE`
-default and the sample fragment) applies to that content, not to this code.
-Apache 2.0 covers the node software; CC BY does not.
+MIT for the code in this repository. The content served by sphere.pub is the
+Sphere project by Mariano Viola, CC BY-NC unless a fragment states otherwise.
