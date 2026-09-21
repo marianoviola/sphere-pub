@@ -17,7 +17,7 @@
     "deploy": "npm run migrate && wrangler deploy"
   },
   "dependencies": {
-    "@sphere-pub/node": "^1.0.0"
+    "@sphere-pub/node": "^1.1.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260621.1",
