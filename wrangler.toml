@@ -1,36 +1,19 @@
-# Sphere Node - Cloudflare Workers configuration.
+# sphere.pub — a Sphere Node instance built from the @sphere-pub/node package.
 #
-# Two coherent ways to use this file:
-#
-# 1. Deploy to Cloudflare button (recommended for owners): the button reads this
-#    config, provisions a D1 database, an R2 bucket, and a KV namespace for the
-#    deployer, then rewrites the resource IDs below into their own copy. The
-#    placeholder `*_id` values exist only so the button has a field to rewrite.
-#
-# 2. Manual `wrangler deploy`: DELETE the `database_id` and KV `id` lines (or
-#    leave them blank). Wrangler v4 will offer to provision the missing
-#    resources on first deploy and write the real IDs back into this file.
-#
-# Either way, code references BINDING names (SPHERE_DB, SPHERE_CONTENT,
-# SPHERE_CACHE), never resource names, so a deployer may rename the underlying
-# resources freely.
+# Everything node-specific (routes, schema, migrations) comes from the package;
+# this file only holds this deployment's identity, vars, and resource bindings.
+# Code references BINDING names (SPHERE_DB, SPHERE_CONTENT, SPHERE_CACHE).
 
 name = "sphere-node-pub"
-main = "src/platform/cloudflare/worker.ts"
+main = "src/index.ts"
 compatibility_date = "2025-09-01"
 
 [vars]
 SPHERE_PUBLISHER_NAME = "Sphere"
-# Optional one-line tagline shown on the human-readable index page.
 SPHERE_PUBLISHER_SUMMARY = "Agent-readable publishing, served by its own node"
-# Publisher attribution that travels with the discovery doc and every fragment.
 SPHERE_PUBLISHER_URL = "https://marianoviola.com"
 SPHERE_PUBLISHER_ICON = "https://sphere.pub/assets/sphere-mark.svg"
 SPHERE_DEFAULT_LICENSE = "CC-BY-NC"
-# Content Signals (contentsignals.org) `ai-train` directive in /robots.txt.
-# Off ("") by default; set to "yes" to opt in to AI-training use of this
-# node's content. Unrelated to agent read/search access, which stays open
-# either way — that's this project's whole purpose.
 SPHERE_ALLOW_AI_TRAINING = ""
 
 # SPHERE_OWNER_TOKEN is a SECRET, never a var and never committed:
@@ -40,7 +23,8 @@ SPHERE_ALLOW_AI_TRAINING = ""
 binding = "SPHERE_DB"
 database_name = "sphere-node-db"
 database_id = "e8a5b0c6-7700-4a5d-8874-3f6f58ec4576"
-migrations_dir = "migrations"
+# The schema ships with the package; no local migrations directory.
+migrations_dir = "node_modules/@sphere-pub/node/migrations"
 
 [[r2_buckets]]
 binding = "SPHERE_CONTENT"
