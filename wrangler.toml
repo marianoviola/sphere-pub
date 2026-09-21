@@ -4,7 +4,7 @@
 # this file only holds this deployment's identity, vars, and resource bindings.
 # Code references BINDING names (SPHERE_DB, SPHERE_CONTENT, SPHERE_CACHE).
 
-name = "sphere-node-pub"
+name = "sphere-pub"
 main = "src/index.ts"
 compatibility_date = "2025-09-01"
 
